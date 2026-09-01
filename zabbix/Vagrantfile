@@ -1,0 +1,185 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
+
+  # Every Vagrant development environment requires a box. You can search for
+  # boxes at https://vagrantcloud.com/search.
+  config.vm.box = "bento/ubuntu-24.04"
+  # config.vm.box_version = "202510.26.0"
+
+  # Disable automatic box update checking. If you disable this, then
+  # boxes will only be checked for updates when the user runs
+  # `vagrant box outdated`. This is not recommended.
+  config.vm.box_check_update = false
+
+  config.vm.boot_timeout = 600
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # NOTE: This will enable public access to the opened port
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine and only allow access
+  # via 127.0.0.1 to disable public access
+  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  # config.vm.network "private_network", ip: "192.168.33.10"
+
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network "public_network"
+  config.vm.network "public_network", use_dhcp_assigned_default_route: true
+
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  # config.vm.synced_folder "../data", "/vagrant_data"
+
+  # Disable the default share of the current code directory. Doing this
+  # provides improved isolation between the vagrant box and your host
+  # by making sure your Vagrantfile isn't accessible to the vagrant box.
+  # If you use this you may want to enable additional shared subfolders as
+  # shown above.
+  # config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+  #   vb.gui = true
+  # Força o cabo de rede virtual a iniciar conectado
+     vb.customize ["modifyvm", :id, "--cableconnected1", "on"]
+  #
+  #   # Customize the amount of memory on the VM:
+     vb.memory = "2048"
+     vb.cpus = 2
+     vb.name = "Zabbix-Server-7.0"
+  end
+  #
+  # View the documentation for the provider you are using for more
+  # information on available options.
+
+  # Enable provisioning with a shell script. Additional provisioners such as
+  # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
+  # documentation for more information about their specific syntax and use.
+  config.vm.provision "shell", inline: <<-SHELL
+
+   export DEBIAN_FRONTEND=noninteractive
+  
+   echo "=================================================="
+   echo "Pre-install. Configurando o proxy no Ubuntu APT..."
+   echo "=================================================="
+   cat <<EOF > /etc/apt/apt.conf.d/95proxy.conf
+Acquire::http::Proxy "http://172.16.0.1:3128/";
+Acquire::https::Proxy "http://172.16.0.1:3128/";
+EOF
+   chmod 600 /etc/apt/apt.conf.d/95proxy.conf
+  
+  
+   # Configura as variáveis de ambiente globais do sistema (/etc/environment)
+   # Importante para que o Zabbix Server e scripts externos usem o proxy  
+  
+   cat <<EOF >> /etc/environment
+http_proxy="http://172.16.0.1:3128/"
+https_proxy="http://172.16.0.1:3128/"
+ftp_proxy="http://172.16.0.1:3128/"
+no_proxy="172.16.*.*,10.83.*.*"
+HTTP_PROXY="http://172.16.0.1:3128/"
+HTTPS_PROXY="http://172.16.0.1:3128/"
+FTP_PROXY="http://172.16.0.1:3128/"
+NO_PROXY="172.16.*.*,10.83.*.*"
+EOF
+
+
+   # Exporta imediatamente para a sessão atual do script de provisionamento
+   export http_proxy="http://172.16.0.1:3128/"
+   export https_proxy="http://172.16.0.1:3128/"
+   export no_proxy="172.16.*.*,10.83.*.*"
+
+   echo "=================================================="
+   echo "1. Atualizando pacotes e instalando utilitários..."
+   echo "=================================================="
+   apt-get update
+   apt-get install -y wget gnupg2 curl locale-gen
+
+   echo "=================================================="
+   echo "2. Adicionando o idioma PT-BR ao sistema..."
+   echo "=================================================="
+   # Gera a localidade PT-BR para habilitar a tradução na interface do Zabbix
+   locale-gen pt_BR.UTF-8
+   update-locale LANG=pt_BR.UTF-8
+
+   echo "=================================================="
+   echo "3. Instalando o Repositório do Zabbix 7.0 LTS..."
+   echo "=================================================="
+   wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu24.04_all.deb
+   dpkg -i zabbix-release_latest_7.0+ubuntu24.04_all.deb
+   apt-get update
+
+   echo "=================================================="
+   echo "4. Instalando Servidor, Frontend (Nginx), Agente e PostgreSQL..."
+   echo "=================================================="
+   # Instala o Zabbix para Postgres e Nginx de uma só vez (as dependências do postgres/nginx sobem junto)
+   apt-get install -y postgresql  zabbix-server-pgsql zabbix-frontend-php php8.3-pgsql zabbix-nginx-conf zabbix-sql-scripts zabbix-agent2
+
+   echo "=================================================="
+   echo "5. Configurando o Banco de Dados PostgreSQL..."
+   echo "=================================================="
+   systemctl start postgresql
+   systemctl enable postgresql
+
+   # Cria o usuário do Zabbix e a database no PostgreSQL
+   sudo -u postgres psql -c "CREATE USER zabbix WITH PASSWORD 'iasep@123';"
+   sudo -u postgres psql -c "CREATE DATABASE zabbix OWNER zabbix;"
+
+   echo "=================================================="
+   echo "6. Importando o esquema inicial do Banco de Dados..."
+   echo "=================================================="
+   # Importa as tabelas estruturais oficiais para o PostgreSQL
+   zcat /usr/share/zabbix-sql-scripts/postgresql/server.sql.gz | sudo -u zabbix psql zabbix
+
+   echo "=================================================="
+   echo "7. Ajustando arquivos de configuração do Zabbix e Nginx..."
+   echo "=================================================="
+   # Insere a senha correta da database no arquivo do servidor Zabbix
+   sed -i 's/# DBPassword=/DBPassword=iasep@123/g' /etc/zabbix/zabbix_server.conf
+
+   # Ajusta o arquivo de configuração do Nginx fornecido pelo Zabbix
+   # Ativa as linhas de escuta da porta 80 e define o server_name (IP da máquina)
+   sed -i 's/# listen 80;/listen 80;/g' /etc/zabbix/nginx.conf
+   sed -i 's/# server_name example.com;/server_name 192.168.56.50;/g' /etc/zabbix/nginx.conf
+
+   # Remove a página padrão do Nginx para evitar conflito com o Zabbix na porta 80
+   rm -f /etc/nginx/sites-enabled/default
+    
+   # Criação do link simbólico para ativar o arquivo de configuração do Zabbix no Nginx
+   ln -sf /etc/zabbix/nginx.conf /etc/nginx/sites-enabled/zabbix.conf
+
+   echo "=================================================="
+   echo "8. Inicializando e habilitando os serviços..."
+   echo "=================================================="
+   systemctl restart zabbix-server zabbix-agent2 nginx php8.3-fpm
+   systemctl enable zabbix-server zabbix-agent2 nginx php8.3-fpm
+
+   echo "=================================================="
+   echo "PROVISIONAMENTO CONCLUÍDO COM SUCESSO!"
+   echo "Acesse o painel em: http://192.168.56.50"
+   echo "=================================================="
+    
+  SHELL
+end
