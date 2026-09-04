@@ -42,3 +42,110 @@ Este repositório tem como objetivos:
 * Reduzir configurações manuais.
 * Documentar a infraestrutura das aplicações.
 * Servir como base para futuras integrações com Ansible, Terraform, GitLab CI/CD e GitOps.
+
+---
+
+### 📦 Pré-requisitos
+
+Antes de utilizar os ambientes, instale:
+```
+Vagrant
+vagrant --version
+VirtualBox
+VBoxManage --version
+Git
+git --version
+```
+Opcionalmente:
+
+```
+ansible --version
+🚀 Instalação
+
+Clone o repositório:
+
+git clone <URL_DO_REPOSITORIO>
+```
+Entre no diretório:
+
+```
+cd vagrant
+```
+
+Escolha a aplicação:
+```
+cd zabbix
+```
+Inicialize o ambiente:
+```
+vagrant up
+```
+Após a criação da máquina:
+```
+vagrant status
+```
+Acesse a VM:
+```
+vagrant ssh
+```
+
+---
+
+### ⚙️ Utilização
+
+Cada aplicação possui seu próprio Vagrantfile.
+
+Exemplo:
+```
+cd glpi
+vagrant up
+```
+Para acessar:
+```
+vagrant ssh
+```
+Para desligar:
+```
+vagrant halt
+```
+Para iniciar novamente:
+```
+vagrant up
+```
+Para destruir o ambiente:
+```
+vagrant destroy
+```
+
+---
+### 🖥️ Gerenciamento das VMs
+
+Verificar status
+```
+vagrant status
+```
+Iniciar
+```
+vagrant up
+```
+Reiniciar
+```
+vagrant reload
+```
+Desligar
+```
+vagrant halt
+```
+Acessar
+```
+vagrant ssh
+```
+Destruir
+```
+vagrant destroy
+```
+Recriar completamente
+```
+vagrant destroy -f
+vagrant up
+```
